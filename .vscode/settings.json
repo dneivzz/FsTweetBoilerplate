@@ -1,0 +1,8 @@
+{
+    "[fsharp]": {
+        "editor.defaultFormatter": "Ionide.Ionide-fsharp"
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    }
+}

@@ -1,5 +1,11 @@
-source https://www.nuget.org/api/v2
-framework: net461
+source https://api.nuget.org/v3/index.json
+
+storage: none
+framework: net6.0, netstandard2.0, netstandard2.1
+
+nuget DotLiquid
 nuget FAKE
-nuget FSharp.Core
+nuget Fake.Core.Target
+nuget Fake.IO.FileSystem
 nuget Suave
+nuget Suave.DotLiquid
