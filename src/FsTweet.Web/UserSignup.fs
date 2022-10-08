@@ -108,7 +108,8 @@ module Suave =
           Redirection.FOUND "/signup" ctx
 
         let onFailure msgs =
-          let viewModel = { vm with Error = Some(List.head msgs) }
+          let viewModel =
+            { vm with Error = Some(List.head msgs) }
 
           page signupTemplatePath viewModel ctx
 

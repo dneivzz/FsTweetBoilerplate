@@ -31,4 +31,5 @@ type CreateUserTable() =
       .AsBoolean()
     |> ignore
 
-  override this.Down() = ()
+  override this.Down() =
+    base.Delete.Table("Users") |> ignore
