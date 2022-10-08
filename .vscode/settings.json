@@ -4,5 +4,10 @@
     },
     "[jsonc]": {
         "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "FSharp.inlayHints.typeAnnotations": false,
+    "editor.inlayHints.enabled": "offUnlessPressed",
+    "[liquid]": {
+        "editor.formatOnSave": false
     }
 }

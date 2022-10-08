@@ -1,0 +1,15 @@
+{% extends "master_page.liquid" %}
+{% block head %}
+  <title> Sign Up - FsTweet </title>
+{% endblock %}
+{% block content %}
+<form method="POST" action="/signup">
+  {% if model.Error %}
+    <p>{{ model.Error.Value }}</p>
+  {% endif %}
+  <input type="email" name="Email" value={{ model.Email }}>
+  <input type="text" name="Username" value={{ model.Username }}>
+  <input type="password" name="Password">
+  <button type="submit">Sign up</button>
+</form>
+{% endblock %}

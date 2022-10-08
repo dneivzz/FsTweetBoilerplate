@@ -4,4 +4,4 @@ dotnet paket restore
 
 #export NPM_FILE_PATH=$(which npm)
 # build using FAKE with optional parameters in $@
-dotnet fake run build.fsx $@
+dotnet run
