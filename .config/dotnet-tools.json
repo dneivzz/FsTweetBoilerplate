@@ -19,6 +19,12 @@
       "commands": [
         "fantomas"
       ]
+    },
+    "fluentmigrator.dotnet.cli": {
+      "version": "3.3.2",
+      "commands": [
+        "dotnet-fm"
+      ]
     }
   }
 }

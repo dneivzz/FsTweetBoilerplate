@@ -1,6 +1,6 @@
-﻿open Fake.Core
+﻿open System
+open Fake.Core
 open Fake.IO
-open System
 
 let redirect createProcess =
   createProcess
@@ -32,17 +32,27 @@ Context.setExecutionContext (Context.RuntimeContext.Fake execContext)
 let buildPath = Path.getFullName "build"
 let srcPath = Path.getFullName "src"
 
+let connString =
+  Environment.environVarOrDefault
+    "FSTWEET_DB_CONN_STRING"
+    @"Server=172.19.0.3;Port=5432;Database=FsTweet;User Id=root;Password=root;" // let dbConnection = //   ConnectionString(connString, DatabaseProvider.PostgreSQL)
+
+let migrationAssembly =
+  Path.combine buildPath "FsTweet.Db.Migrations.dll"
+
+let projectsToBuild = [ "FsTweet.Web" ]
+
 Target.create "Clean" (fun _ -> Shell.cleanDir (Path.getFullName "deploy"))
 
 Target.create "InstallClient" (fun _ -> run npm "install" ".")
-
-let projectsToBuild = [ "FsTweet.Web"; "FsTweet.Db.Migrations" ]
 
 Target.create
   "Build"
   (fun _ ->
     projectsToBuild
-    |> List.map (fun p -> dotnet $"""build -o {buildPath} {Path.combine srcPath p}""" "")
+    |> List.map (fun p ->
+      dotnet $"""build -o {buildPath} {Path.combine srcPath p}""" ""
+    )
     |> Seq.toArray
     |> Array.map redirect
     |> Array.Parallel.map Proc.run
@@ -52,7 +62,10 @@ Target.create
 Target.create
   "Run"
   (fun _ ->
-    [ createProcess (Path.combine buildPath "FsTweet.Web") "" (Path.getFullName "./build") ]
+    [ createProcess
+        (Path.combine buildPath "FsTweet.Web")
+        ""
+        (Path.getFullName "./build") ]
     |> Seq.toArray
     |> Array.map redirect
     |> Array.Parallel.map Proc.run
@@ -67,7 +80,8 @@ let copyToBuildDir srcDir =
 Target.create
   "Views"
   (fun _ ->
-    let srcDir = Path.combine srcPath "FsTweet.Web/views"
+    let srcDir =
+      Path.combine srcPath "FsTweet.Web/views"
 
     [ copyToBuildDir srcDir ]
     |> Seq.toArray
@@ -79,7 +93,8 @@ Target.create
 Target.create
   "Assets"
   (fun _ ->
-    let srcDir = Path.combine srcPath "FsTweet.Web/assets"
+    let srcDir =
+      Path.combine srcPath "FsTweet.Web/assets"
 
     [ copyToBuildDir srcDir ]
     |> Seq.toArray
@@ -88,10 +103,37 @@ Target.create
     |> ignore
   )
 
+Target.create
+  "BuildMigrations"
+  (fun _ ->
+    [ "FsTweet.Db.Migrations" ]
+    |> List.map (fun p ->
+      dotnet $"""build -o {buildPath} {Path.combine srcPath p}""" ""
+    )
+    |> Seq.toArray
+    |> Array.map redirect
+    |> Array.Parallel.map Proc.run
+    |> ignore
+  )
+
+Target.create
+  "RunMigrations"
+  (fun _ ->
+    dotnet
+      $"""dotnet-fm migrate -p postgres -c "{connString}" -a {migrationAssembly} --allowDirtyAssemblies"""
+      ""
+    |> redirect
+    |> Proc.run
+    |> ignore
+  )
+
+
 open Fake.Core.TargetOperators
 
 let dependencies =
   [ "Clean"
+    ==> "BuildMigrations"
+    ==> "RunMigrations"
     ==> "Build"
     ==> "Views"
     ==> "Assets"

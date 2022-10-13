@@ -1,3 +1,4 @@
 FAKE
 Fake.IO.FileSystem
 Fake.Core.Target
+Npgsql
