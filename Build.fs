@@ -1,11 +1,14 @@
 ﻿open System
 open Fake.Core
 open Fake.IO
+open Npgsql
 
 let redirect createProcess =
   createProcess
   |> CreateProcess.redirectOutputIfNotRedirected
-  |> CreateProcess.withOutputEvents Console.WriteLine Console.WriteLine
+  |> CreateProcess.withOutputEvents
+       Console.WriteLine
+       Console.WriteLine
 
 let createProcess exe arg dir =
   CreateProcess.fromRawCommandLine exe arg
@@ -37,12 +40,16 @@ let connString =
     "FSTWEET_DB_CONN_STRING"
     @"Server=172.19.0.3;Port=5432;Database=FsTweet;User Id=root;Password=root;" // let dbConnection = //   ConnectionString(connString, DatabaseProvider.PostgreSQL)
 
+Environment.setEnvironVar "FSTWEET_DB_CONN_STRING" connString
+
 let migrationAssembly =
   Path.combine buildPath "FsTweet.Db.Migrations.dll"
 
 let projectsToBuild = [ "FsTweet.Web" ]
 
-Target.create "Clean" (fun _ -> Shell.cleanDir (Path.getFullName "deploy"))
+Target.create
+  "Clean"
+  (fun _ -> Shell.cleanDir (Path.getFullName "deploy"))
 
 Target.create "InstallClient" (fun _ -> run npm "install" ".")
 

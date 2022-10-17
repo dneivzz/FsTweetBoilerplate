@@ -1,18 +1,22 @@
 module FsTweetWeb.Main
 
 open Suave
+open System
+open Database
 open System.IO
 open System.Reflection
 open Suave.DotLiquid
 open Suave.Filters
 open Suave.Operators
 open Suave.Files
+open Email
 
 let currentPath =
   Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
 
 let initDotLiquid () =
-  let templatesDir = Path.Combine(currentPath, "views")
+  let templatesDir =
+    Path.Combine(currentPath, "views")
 
   setTemplatesDir templatesDir
 
@@ -26,6 +30,26 @@ let serveAssets =
 
 [<EntryPoint>]
 let main argv =
+  let fsTweetConnString =
+    Environment.GetEnvironmentVariable "FSTWEET_DB_CONN_STRING"
+
+  let getDataCtx =
+    dataContext fsTweetConnString
+
+  let serverToken =
+    Environment.GetEnvironmentVariable "FSTWEET_POSTMARK_SERVER_TOKEN"
+
+  let senderEmailAddress =
+    Environment.GetEnvironmentVariable "FSTWEET_SENDER_EMAIL_ADDRESS"
+
+  let env =
+    Environment.GetEnvironmentVariable "FSTWEET_ENVIRONMENT"
+
+  let sendEmail =
+    match env with
+    | "dev" -> consoleSendEmail
+    | _ -> initSendEmail senderEmailAddress serverToken
+
   initDotLiquid ()
   setCSharpNamingConvention ()
 
@@ -33,7 +57,7 @@ let main argv =
     choose
       [ serveAssets
         path "/" >=> page "guest/home.liquid" ""
-        UserSignup.Suave.webPart () ]
+        UserSignup.Suave.webPart getDataCtx sendEmail ]
 
   startWebServer defaultConfig app
   0
