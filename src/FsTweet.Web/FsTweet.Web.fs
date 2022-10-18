@@ -57,7 +57,8 @@ let main argv =
     choose
       [ serveAssets
         path "/" >=> page "guest/home.liquid" ""
-        UserSignup.Suave.webPart getDataCtx sendEmail ]
+        UserSignup.Suave.webPart getDataCtx sendEmail
+        Auth.Suave.webpart getDataCtx ]
 
   startWebServer defaultConfig app
   0
