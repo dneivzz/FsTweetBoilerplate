@@ -114,15 +114,16 @@ type FindUser = Username -> AsyncResult<User option, System.Exception>
 module Persistence =
   open Database
   open FSharp.Data.Sql
+  open System
 
-  let mapUser (user: DataContext.``public.UsersEntity``) =
+  let mapUserEntityToUser (user: DataContext.``public.UsersEntity``) =
     let userResult =
       trial {
         let! username = Username.TryCreate user.Username
         let! passwordHash = PasswordHash.TryCreate user.PasswordHash
         let! email = EmailAddress.TryCreate user.Email
 
-        let userEmail =
+        let userEmailAddress =
           match user.IsEmailVerified with
           | true -> Verified email
           | _ -> NotVerified email
@@ -131,11 +132,25 @@ module Persistence =
           { UserId = UserId user.Id
             Username = username
             PasswordHash = passwordHash
-            EmailAddress = userEmail }
+            EmailAddress = userEmailAddress }
       }
 
-    userResult
-    |> mapFailure System.Exception
+    userResult |> mapFailure Exception
+
+  let mapUserEntity (user: DataContext.``public.UsersEntity``) =
+    mapUserEntityToUser user
+    |> Async.singleton
+    |> AR
+
+  let mapUserEntities
+    (users: DataContext.``public.UsersEntity`` seq)
+    =
+    users
+    |> Seq.map mapUserEntityToUser
+    |> collect
+    |> mapFailure (fun errs ->
+      new AggregateException(errs) :> Exception
+    )
     |> Async.singleton
     |> AR
 
@@ -155,6 +170,6 @@ module Persistence =
       match userToFind with
       | None -> return None
       | Some user ->
-        let! user = mapUser user
+        let! user = mapUserEntity user
         return Some user
     }

@@ -8,3 +8,5 @@ BCrypt.Net-Next
 SQLProvider
 Npgsql
 Postmark
+Chiron
+stream-net

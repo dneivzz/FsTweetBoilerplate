@@ -295,17 +295,6 @@ module Suave =
     | CreateUserError cuErr -> handleCreateUserError viewModel cuErr
     | SendEmailError err -> handleSendEmailError viewModel err
 
-  let handleUserSignupResult viewModel result =
-    either
-      (onUserSignupSuccess viewModel)
-      (onUserSignupFailure viewModel)
-      result
-
-  let handleUserSignupAsyncResult viewModel aResult =
-    aResult
-    |> Async.ofAsyncResult
-    |> Async.map (handleUserSignupResult viewModel)
-
   let handleUserSignup signupUser ctx =
     async {
       printfn "%A" ctx.request.form
@@ -323,11 +312,11 @@ module Suave =
 
         match result with
         | Success userSignupReq ->
-          let userSignupAsyncResult =
-            signupUser userSignupReq
-
           let! webpart =
-            handleUserSignupAsyncResult vm userSignupAsyncResult
+            signupUser userSignupReq
+            |> AR.either
+                 (onUserSignupSuccess vm)
+                 (onUserSignupFailure vm)
 
           return! webpart ctx
         | Failure msg ->

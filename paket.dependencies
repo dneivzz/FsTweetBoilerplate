@@ -5,6 +5,7 @@ framework: net6.0, net5.0, netstandard2.0, netstandard2.1
 
 nuget BCrypt.Net-Next
 nuget Chessie
+nuget Chiron
 nuget DotLiquid
 nuget FAKE
 nuget Fake.Core.Target
@@ -13,6 +14,7 @@ nuget FluentMigrator
 nuget Npgsql
 nuget Postmark
 nuget SQLProvider
+nuget stream-net
 nuget Suave
 nuget Suave.DotLiquid
 nuget Suave.Experimental

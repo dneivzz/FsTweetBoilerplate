@@ -10,6 +10,7 @@ open Suave.Filters
 open Suave.Operators
 open Suave.Files
 open Email
+open System.Net
 
 let currentPath =
   Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
@@ -50,6 +51,33 @@ let main argv =
     | "dev" -> consoleSendEmail
     | _ -> initSendEmail senderEmailAddress serverToken
 
+  let serverKey =
+    Environment.GetEnvironmentVariable "FSTWEET_SERVER_KEY"
+    |> ServerKey.fromBase64
+
+  let streamConfig: GetStream.Config =
+    { ApiKey = Environment.GetEnvironmentVariable "FSTWEET_STREAM_KEY"
+      ApiSecret =
+        Environment.GetEnvironmentVariable "FSTWEET_STREAM_SECRET"
+      AppId =
+        Environment.GetEnvironmentVariable "FSTWEET_STREAM_APP_ID" }
+
+  let getStreamClient =
+    GetStream.newClient streamConfig
+
+  let ipZero = IPAddress.Parse("0.0.0.0")
+
+  let port =
+    Environment.GetEnvironmentVariable "PORT"
+
+  let httpBinding =
+    HttpBinding.create HTTP ipZero (uint16 port)
+
+  let serverConfig =
+    { defaultConfig with
+        serverKey = serverKey
+        bindings = [ httpBinding ] }
+
   initDotLiquid ()
   setCSharpNamingConvention ()
 
@@ -58,7 +86,10 @@ let main argv =
       [ serveAssets
         path "/" >=> page "guest/home.liquid" ""
         UserSignup.Suave.webPart getDataCtx sendEmail
-        Auth.Suave.webpart getDataCtx ]
+        Auth.Suave.webpart getDataCtx
+        Wall.Suave.webpart getDataCtx getStreamClient
+        Social.Suave.webpart getDataCtx getStreamClient
+        UserProfile.Suave.webpart getDataCtx getStreamClient ]
 
-  startWebServer defaultConfig app
+  startWebServer serverConfig app
   0

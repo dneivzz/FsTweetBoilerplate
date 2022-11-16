@@ -35,10 +35,13 @@ Context.setExecutionContext (Context.RuntimeContext.Fake execContext)
 let buildPath = Path.getFullName "build"
 let srcPath = Path.getFullName "src"
 
+let localDbConnString =
+  @"Server=172.19.0.3;Port=5432;Database=FsTweet;User Id=root;Password=root;" // let dbConnection = //   ConnectionString(connString, DatabaseProvider.PostgreSQL)
+
 let connString =
   Environment.environVarOrDefault
     "FSTWEET_DB_CONN_STRING"
-    @"Server=172.19.0.3;Port=5432;Database=FsTweet;User Id=root;Password=root;" // let dbConnection = //   ConnectionString(connString, DatabaseProvider.PostgreSQL)
+    localDbConnString
 
 Environment.setEnvironVar "FSTWEET_DB_CONN_STRING" connString
 
@@ -53,6 +56,32 @@ Target.create
 
 Target.create "InstallClient" (fun _ -> run npm "install" ".")
 
+let dbFilePath = "./src/FsTweet.Web/Db.fs"
+
+Target.create
+  "VerifyLocalDbConnString"
+  (fun _ ->
+    let dbFileContent =
+      System.IO.File.ReadAllText dbFilePath
+
+    if not (dbFileContent.Contains(localDbConnString)) then
+      failwith "local db connection string mismatch"
+  )
+
+let swapDbFileContent (oldValue: string) (newValue: string) =
+  let dbFileContent =
+    System.IO.File.ReadAllText dbFilePath
+
+  let newDbFileContent =
+    dbFileContent.Replace(oldValue, newValue)
+
+  System.IO.File.WriteAllText(dbFilePath, newDbFileContent)
+
+Target.create
+  "ReplaceLocalDbConnStringForBuild"
+  (fun _ -> swapDbFileContent localDbConnString connString)
+
+
 Target.create
   "Build"
   (fun _ ->
@@ -65,6 +94,10 @@ Target.create
     |> Array.Parallel.map Proc.run
     |> ignore
   )
+
+Target.create
+  "RevertLocalDbConnStringChange"
+  (fun _ -> swapDbFileContent connString localDbConnString)
 
 Target.create
   "Run"
@@ -141,7 +174,10 @@ let dependencies =
   [ "Clean"
     ==> "BuildMigrations"
     ==> "RunMigrations"
+    // ==> "VerifyLocalDbConnString"
+    // ==> "ReplaceLocalDbConnStringForBuild"
     ==> "Build"
+    // ==> "RevertLocalDbConnStringChange"
     ==> "Views"
     ==> "Assets"
     ==> "Run" ]

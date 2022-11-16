@@ -54,10 +54,13 @@ module Suave =
   open Suave.Filters
   open Suave.Operators
   open Suave.Form
+  open Suave.Authentication
+  open Suave.Cookie
   open Domain
   open Chessie.ErrorHandling
   open Chessie
   open User
+  open Suave.State.CookieStateStore
 
 
   type LoginViewModel =
@@ -72,8 +75,10 @@ module Suave =
 
   let loginTemplatePath = "user/login.liquid"
 
-  let renderLoginPage (viewModel: LoginViewModel) =
-    page loginTemplatePath viewModel
+  let renderLoginPage (viewModel: LoginViewModel) hasUserLoggedIn =
+    match hasUserLoggedIn with
+    | Some _ -> Redirection.FOUND "/wall"
+    | _ -> page loginTemplatePath viewModel
 
   let onLoginFailure viewModel loginError =
     match loginError with
@@ -81,34 +86,40 @@ module Suave =
       let vm =
         { viewModel with Error = Some "password didn't match" }
 
-      renderLoginPage vm
+      renderLoginPage vm None
     | EmailNotVerified ->
       let vm =
         { viewModel with Error = Some "email not verified" }
 
-      renderLoginPage vm
+      renderLoginPage vm None
     | UsernameNotFound ->
       let vm =
         { viewModel with Error = Some "invalid username" }
 
-      renderLoginPage vm
+      renderLoginPage vm None
     | Error ex ->
       printfn "%A" ex
 
       let vm =
         { viewModel with Error = Some "something went wrong" }
 
-      renderLoginPage vm
+      renderLoginPage vm None
 
-  let onLoginSuccess (user: User) = Successful.OK user.Username.Value
+  let setState key value ctx =
+    match HttpContext.state ctx with
+    | Some state -> state.set key value
+    | _ -> never
 
-  let handleLoginResult viewModel loginResult =
-    either onLoginSuccess (onLoginFailure viewModel) loginResult
+  let userSessionKey = "fsTweetUser"
 
-  let handleLoginAsyncResult viewModel aLoginResult =
-    aLoginResult
-    |> Async.ofAsyncResult
-    |> Async.map (handleLoginResult viewModel)
+  let createUserSession (user: User) =
+    statefulForSession
+    >=> context (setState userSessionKey user)
+
+  let onLoginSuccess (user: User) =
+    authenticated CookieLife.Session false
+    >=> createUserSession user
+    >=> Redirection.FOUND "/wall"
 
   let handleUserLogin findUser ctx =
     async {
@@ -119,25 +130,76 @@ module Suave =
 
         match result with
         | Success req ->
-          let aLoginResult = login findUser req
-          let! webpart = handleLoginAsyncResult vm aLoginResult
+          let! webpart =
+            login findUser req
+            |> AR.either onLoginSuccess (onLoginFailure vm)
+
           return! webpart ctx
         | Failure err ->
           let viewModel = { vm with Error = Some err }
-          return! renderLoginPage viewModel ctx
+          return! renderLoginPage viewModel None ctx
       | Choice2Of2 err ->
         let viewModel =
           { emptyLoginViewModel with Error = Some err }
 
-        return! renderLoginPage viewModel ctx
+        return! renderLoginPage viewModel None ctx
     }
+
+  let redirectToLoginPage =
+    Redirection.FOUND "/login"
+
+  let retrieveUser ctx : User option =
+    match HttpContext.state ctx with
+    | Some state -> state.get userSessionKey
+    | _ -> None
+
+  let initUserSession fFailure fSuccess ctx =
+    match retrieveUser ctx with
+    | Some user -> fSuccess user
+    | _ -> fFailure
+
+  let userSession fFailure fSuccess =
+    statefulForSession
+    >=> context (initUserSession fFailure fSuccess)
+
+  let onAuthenticate fSuccess fFailure =
+    authenticate
+      CookieLife.Session
+      false
+      (fun _ -> Choice2Of2 fFailure)
+      (fun _ -> Choice2Of2 fFailure)
+      (userSession fFailure fSuccess)
+
+  let requiresAuth fSuccess =
+    onAuthenticate fSuccess redirectToLoginPage
+
+  let requiresAuth2 fSuccess =
+    onAuthenticate fSuccess JSON.unauthorized
+
+  let optionalUserSession fSuccess =
+    statefulForSession
+    >=> context (fun ctx -> fSuccess (retrieveUser ctx))
+
+  let mayRequireAuth fSuccess =
+    authenticate
+      CookieLife.Session
+      false
+      (fun _ -> Choice2Of2(fSuccess None))
+      (fun _ -> Choice2Of2(fSuccess None))
+      (optionalUserSession fSuccess)
 
   let webpart getDataCtx =
     let findUser =
       Persistence.findUser getDataCtx
 
-    path "/login"
-    >=> choose
-          [ GET
-            >=> renderLoginPage emptyLoginViewModel
-            POST >=> handleUserLogin findUser ]
+    choose
+      [ path "/login"
+        >=> choose
+              [ GET
+                >=> mayRequireAuth (
+                  renderLoginPage emptyLoginViewModel
+                )
+                POST >=> handleUserLogin findUser ]
+        path "/logout"
+        >=> deauthenticate
+        >=> redirectToLoginPage ]
